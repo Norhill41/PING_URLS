@@ -1,0 +1,28 @@
+name: keep-alive
+
+on:
+  schedule:
+    # 每 10 分鐘；UTC 01:00–13:59 -> 台北 09:00–21:59
+    - cron: "*/10 1-13 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PING_URLS: ${{ secrets.PING_URLS }}
+    steps:
+      - name: Ping all URLs (GET, follow redirects, retry)
+        run: |
+          echo "$PING_URLS" | tr ',' '\n' | while read -r raw; do
+            url="$(echo "$raw" | xargs)"
+            [ -z "$url" ] && continue
+            full="${url}?t=$(date +%s)"
+            echo "Pinging: $full"
+            # -f: 4xx/5xx 視為失敗；-S: 顯示錯誤；-s: 靜默；-L: 跟隨重新導向
+            # --retry 2: 最多重試 2 次；--max-time 10: 單次 10 秒上限
+            if ! curl -fsSL --retry 2 --retry-delay 2 --max-time 10 "$full" > /dev/null; then
+              echo "WARN: failed $url"
+            fi
+          done
